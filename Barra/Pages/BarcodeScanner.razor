@@ -1,0 +1,63 @@
+﻿@page "/barcode-scanner"
+@using ZXing
+@inject IJSRuntime JSRuntime
+@using Microsoft.JSInterop;
+
+<h3>Escáner de Códigos de Barras</h3>
+
+<video id="video" autoplay></video>
+<button @onclick="StartScanning">Iniciar Escaneo</button>
+<p>@result</p>
+
+@code {
+    private string result = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Registra la instancia del componente para su uso en JavaScript
+            await JSRuntime.InvokeVoidAsync("initializeScanner", DotNetObjectReference.Create(this));
+        }
+    }
+
+    private async Task StartScanning()
+    {
+        // Llama a la función JavaScript directamente
+        await JSRuntime.InvokeVoidAsync("startVideo");
+    }
+
+    [JSInvokable("OnCodeDetected")]
+    public void OnCodeDetected(string code)
+    {
+        result = code; // Actualiza el resultado
+        StateHasChanged(); // Actualiza la UI
+    }
+}
+
+<!-- Incluir el código JavaScript directamente aquí -->
+<script>
+    let videoStream;
+
+    window.initializeScanner = function (dotNetHelper) {
+        window.dotNetHelper = dotNetHelper; // Guarda la referencia
+    };
+
+    window.startVideo = async function () {
+        const video = document.getElementById("video");
+        videoStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = videoStream;
+
+        const codeReader = new ZXing.BrowserMultiFormatReader();
+
+        codeReader.decodeFromVideoDevice(null, 'video', (result, err) => {
+            if (result) {
+                // Llama al método invocable
+                window.dotNetHelper.invokeMethodAsync('OnCodeDetected', result.text);
+            }
+            if (err && !(err instanceof ZXing.NotFoundException)) {
+                console.error(err);
+            }
+        });
+    };
+</script>
